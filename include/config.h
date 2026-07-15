@@ -46,8 +46,10 @@ constexpr bool kDisplayInvert = true;
 constexpr bool kDisplayRgbOrder = true;
 
 // --- Radar center defaults (overridden via WiFi setup portal) ---
-constexpr double kDefaultRadarLat = 52.3676;
-constexpr double kDefaultRadarLon = 4.9041;
+// Airbus Stade (Ottenbecker Damm) — under the Beluga traffic to/from
+// Hamburg-Finkenwerder, ~30 km east.
+constexpr double kDefaultRadarLat = 53.5748;
+constexpr double kDefaultRadarLon = 9.4964;
 
 /** Poll adsb.fi (API public limit: 1 req/s). */
 constexpr unsigned long kAdsbFetchIntervalMs = 3000;
