@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 #include <driver/gpio.h>
@@ -54,6 +55,15 @@ constexpr unsigned long kAdsbFetchIntervalMs = 3000;
 constexpr float kAdsbFetchRadiusScale = 1.0f;
 /** false = hide aircraft with alt_baro "ground"; true = show them too. */
 constexpr bool kAdsbShowGroundAircraft = false;
+
+/**
+ * ICAO DOC 8643 type designators for the Airbus Beluga fleet, matched against
+ * the ADS-B "t" field when the portal's Beluga filter is on.
+ * A3ST = A300-600ST (original), A337 = A330-743L (BelugaXL — its own code, not A3ST).
+ */
+constexpr const char* kBelugaTypeCodes[] = {"A3ST", "A337"};
+constexpr size_t kBelugaTypeCodeCount =
+    sizeof(kBelugaTypeCodes) / sizeof(kBelugaTypeCodes[0]);
 
 // --- UI colors (RGB565) — status screens ---
 constexpr uint16_t kColorBlack = 0x0000;

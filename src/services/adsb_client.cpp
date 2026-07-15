@@ -6,6 +6,7 @@
 #include <ArduinoJson.h>
 
 #include <cstring>
+#include <strings.h>
 
 #include "config.h"
 
@@ -187,6 +188,22 @@ void formatAltitudeTag(const JsonObject& plane, char* out, size_t out_len) {
   }
 }
 
+/** Match against the already-trimmed Aircraft::type — raw "t" may carry padding. */
+bool typeAllowed(const char* type, const TypeFilter& filter) {
+  if (filter.codes == nullptr || filter.count == 0) {
+    return true;
+  }
+  if (type == nullptr || type[0] == '\0') {
+    return false;
+  }
+  for (size_t i = 0; i < filter.count; ++i) {
+    if (strcasecmp(type, filter.codes[i]) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void fillTagFields(Aircraft* ac, const JsonObject& plane) {
   copyJsonStringTrimmed(plane, "flight", ac->callsign, sizeof(ac->callsign));
   if (ac->callsign[0] == '\0') {
@@ -205,7 +222,8 @@ size_t aircraftCount() { return s_aircraft_count; }
 
 const Aircraft* aircraftList() { return s_aircraft; }
 
-bool fetchUpdate(double center_lat, double center_lon, float fetch_radius_km) {
+bool fetchUpdate(double center_lat, double center_lon, float fetch_radius_km,
+                 const TypeFilter& types) {
   const float dist_nm = kmToNauticalMiles(fetch_radius_km);
 
   String url = kApiBase;
@@ -265,12 +283,17 @@ bool fetchUpdate(double center_lat, double center_lon, float fetch_radius_km) {
       continue;
     }
 
-    s_aircraft[n].lat = plane["lat"].as<float>();
-    s_aircraft[n].lon = plane["lon"].as<float>();
-    s_aircraft[n].nose_deg = pickNoseHeading(plane);
-    s_aircraft[n].track_deg = pickTrackHeading(plane);
-    s_aircraft[n].gs_knots = pickGroundSpeed(plane);
-    fillTagFields(&s_aircraft[n], plane);
+    Aircraft* slot = &s_aircraft[n];
+    fillTagFields(slot, plane);
+    if (!typeAllowed(slot->type, types)) {
+      continue;  // slot not consumed; next match overwrites it
+    }
+
+    slot->lat = plane["lat"].as<float>();
+    slot->lon = plane["lon"].as<float>();
+    slot->nose_deg = pickNoseHeading(plane);
+    slot->track_deg = pickTrackHeading(plane);
+    slot->gs_knots = pickGroundSpeed(plane);
     ++n;
   }
 

@@ -51,8 +51,16 @@ void handleBootButton() {
 
 void fetchAndDrawAircraft() {
   const float fetch_km = ui::radar::fetchRadiusKm();
+
+  // Read per fetch, so a portal toggle takes effect without a reboot.
+  services::adsb::TypeFilter types;
+  if (ui::radar::belugaOnly()) {
+    types.codes = config::kBelugaTypeCodes;
+    types.count = config::kBelugaTypeCodeCount;
+  }
+
   if (!services::adsb::fetchUpdate(services::location::lat(),
-                                   services::location::lon(), fetch_km)) {
+                                   services::location::lon(), fetch_km, types)) {
     handleBootButton();
     return;
   }
