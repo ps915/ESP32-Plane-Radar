@@ -113,6 +113,7 @@ extern uint16_t kColorAircraft;
 extern uint16_t kColorAcAirbus;
 extern uint16_t kColorAcBoeing;
 extern uint16_t kColorAcBeluga;
+extern uint16_t kColorMilitaryAircraft;
 extern uint16_t kColorAcOther;
 extern uint16_t kColorTrackVector;
 extern uint16_t kColorTagType;
@@ -120,5 +121,23 @@ extern uint16_t kColorTagAltitude;
 extern uint16_t kColorTagSpeed;
 extern uint16_t kColorRunway;
 extern uint16_t kColorRunwayLabel;
+
+// Color settings APIs (NVS backed)
+void colorsInit();
+const char* colorGrid();
+const char* colorAirbus();
+const char* colorBoeing();
+const char* colorBeluga();
+const char* colorMilitary();
+const char* colorOther();
+
+void saveColorGrid(const char* hex);
+void saveColorAirbus(const char* hex);
+void saveColorBoeing(const char* hex);
+void saveColorBeluga(const char* hex);
+void saveColorMilitary(const char* hex);
+void saveColorOther(const char* hex);
+
+void colorsReset();
 
 }  // namespace ui::radar

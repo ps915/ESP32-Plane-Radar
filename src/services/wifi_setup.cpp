@@ -13,10 +13,12 @@
 #include <ESPmDNS.h>
 #endif
 
+#include <vector>
 #include "config.h"
 #include "services/adsb_client.h"
 #include "services/radar_location.h"
 #include "ui/radar_range.h"
+#include "ui/radar_theme.h"
 #include "ui/status_screens.h"
 
 portMUX_TYPE s_boot_mux = portMUX_INITIALIZER_UNLOCKED;
@@ -72,6 +74,10 @@ constexpr int kCoordParamLen = 20;
 constexpr char kCoordInputAttrs[] =
     " type=\"number\" step=\"0.000001\"";
 
+WiFiManagerParameter s_header_general("<h2>General Settings</h2><hr>");
+WiFiManagerParameter s_header_display("<h2>Display Settings</h2><hr>");
+WiFiManagerParameter s_header_colors("<h2>Radar Theme Colors</h2><hr>");
+
 WiFiManagerParameter s_param_lat("radar_lat", "Latitude (deg)", "0",
                                 kCoordParamLen, kCoordInputAttrs);
 WiFiManagerParameter s_param_lon("radar_lon", "Longitude (deg)", "0",
@@ -85,7 +91,7 @@ WiFiManagerParameter s_param_adsb_url(
     kAdsbUrlParamLen, kAdsbUrlInputAttrs);
 
 char s_miles_checkbox_attrs[32] = "type=\"checkbox\"";
-WiFiManagerParameter s_param_miles("use_miles", "Display distances in miles", "T", 2,
+WiFiManagerParameter s_param_miles("use_miles", "Display distance in miles (off = km)", "T", 2,
                                    s_miles_checkbox_attrs, WFM_LABEL_AFTER);
 
 char s_runways_checkbox_attrs[32] = "type=\"checkbox\"";
@@ -93,24 +99,64 @@ WiFiManagerParameter s_param_runways("show_runways", "Show airport runways", "T"
                                      s_runways_checkbox_attrs, WFM_LABEL_AFTER);
 
 char s_beluga_checkbox_attrs[32] = "type=\"checkbox\"";
-WiFiManagerParameter s_param_beluga("beluga_only", "Only show Airbus Beluga", "T", 2,
+WiFiManagerParameter s_param_beluga("beluga_only", "Filter: Only show Airbus Beluga", "T", 2,
                                     s_beluga_checkbox_attrs, WFM_LABEL_AFTER);
 
 char s_airbus_checkbox_attrs[32] = "type=\"checkbox\"";
-WiFiManagerParameter s_param_airbus("airbus_only", "Only show Airbus aircraft", "T", 2,
+WiFiManagerParameter s_param_airbus("airbus_only", "Filter: Only show Airbus aircraft", "T", 2,
                                     s_airbus_checkbox_attrs, WFM_LABEL_AFTER);
 
 char s_altm_checkbox_attrs[32] = "type=\"checkbox\"";
-WiFiManagerParameter s_param_altm("alt_meters", "Show altitude in meters", "T", 2,
+WiFiManagerParameter s_param_altm("alt_meters", "Display altitude in meters (off = feet)", "T", 2,
                                   s_altm_checkbox_attrs, WFM_LABEL_AFTER);
 
 char s_spdtext_checkbox_attrs[32] = "type=\"checkbox\"";
-WiFiManagerParameter s_param_spdtext("speed_text", "Show speed as text (off = vector line)",
+WiFiManagerParameter s_param_spdtext("speed_text", "Display speed as text tag (off = vector line)",
                                      "T", 2, s_spdtext_checkbox_attrs, WFM_LABEL_AFTER);
 
 char s_spdkmh_checkbox_attrs[32] = "type=\"checkbox\"";
-WiFiManagerParameter s_param_spdkmh("speed_kmh", "Speed in km/h (off = knots)", "T", 2,
+WiFiManagerParameter s_param_spdkmh("speed_kmh", "Display speed in km/h (off = knots)", "T", 2,
                                     s_spdkmh_checkbox_attrs, WFM_LABEL_AFTER);
+
+char s_showspeed_checkbox_attrs[32] = "type=\"checkbox\"";
+WiFiManagerParameter s_param_showspeed("show_speed", "Show speed (text or vector)", "T", 2,
+                                       s_showspeed_checkbox_attrs, WFM_LABEL_AFTER);
+
+char s_showalt_checkbox_attrs[32] = "type=\"checkbox\"";
+WiFiManagerParameter s_param_showalt("show_alt", "Show altitude", "T", 2,
+                                     s_showalt_checkbox_attrs, WFM_LABEL_AFTER);
+
+char s_color_grid_attrs[32] = "type=\"color\"";
+WiFiManagerParameter s_param_color_grid("color_grid", "Grid Color", "#106420", 8, s_color_grid_attrs);
+
+char s_color_airbus_attrs[32] = "type=\"color\"";
+WiFiManagerParameter s_param_color_airbus("color_airbus", "Airbus Color", "#005aff", 8, s_color_airbus_attrs);
+
+char s_color_boeing_attrs[32] = "type=\"color\"";
+WiFiManagerParameter s_param_color_boeing("color_boeing", "Boeing Color", "#ff1e1e", 8, s_color_boeing_attrs);
+
+char s_color_beluga_attrs[32] = "type=\"color\"";
+WiFiManagerParameter s_param_color_beluga("color_beluga", "Beluga Color", "#ffbe00", 8, s_color_beluga_attrs);
+
+char s_color_military_attrs[32] = "type=\"color\"";
+WiFiManagerParameter s_param_color_military("color_military", "Military Color", "#808000", 8, s_color_military_attrs);
+
+char s_color_other_attrs[32] = "type=\"color\"";
+WiFiManagerParameter s_param_color_other("color_other", "Other Planes Color", "#c878ff", 8, s_color_other_attrs);
+
+WiFiManagerParameter s_param_reset_colors(
+    "<button type=\"button\" onclick=\"resetColorsToDefault()\" style=\"margin-top:15px;margin-bottom:10px;width:100%;\">Reset Colors to Default</button>"
+    "<script>"
+    "function resetColorsToDefault() {"
+    "  document.getElementById('color_grid').value = '#106420';"
+    "  document.getElementById('color_airbus').value = '#005aff';"
+    "  document.getElementById('color_boeing').value = '#ff1e1e';"
+    "  document.getElementById('color_beluga').value = '#ffbe00';"
+    "  document.getElementById('color_military').value = '#808000';"
+    "  document.getElementById('color_other').value = '#c878ff';"
+    "}"
+    "</script>"
+);
 
 void refreshPortalParamDefaults() {
   char lat_buf[kCoordParamLen + 1];
@@ -141,6 +187,21 @@ void refreshPortalParamDefaults() {
   snprintf(s_spdkmh_checkbox_attrs, sizeof(s_spdkmh_checkbox_attrs),
            "type=\"checkbox\"%s", ui::radar::speedKmh() ? " checked" : "");
   s_param_spdkmh.setValue("T", 2);
+
+  snprintf(s_showspeed_checkbox_attrs, sizeof(s_showspeed_checkbox_attrs),
+           "type=\"checkbox\"%s", ui::radar::showSpeed() ? " checked" : "");
+  s_param_showspeed.setValue("T", 2);
+
+  snprintf(s_showalt_checkbox_attrs, sizeof(s_showalt_checkbox_attrs),
+           "type=\"checkbox\"%s", ui::radar::showAltitude() ? " checked" : "");
+  s_param_showalt.setValue("T", 2);
+
+  s_param_color_grid.setValue(ui::radar::colorGrid(), 7);
+  s_param_color_airbus.setValue(ui::radar::colorAirbus(), 7);
+  s_param_color_boeing.setValue(ui::radar::colorBoeing(), 7);
+  s_param_color_beluga.setValue(ui::radar::colorBeluga(), 7);
+  s_param_color_military.setValue(ui::radar::colorMilitary(), 7);
+  s_param_color_other.setValue(ui::radar::colorOther(), 7);
 }
 
 void onPortalParamsSaved() {
@@ -156,20 +217,44 @@ void onPortalParamsSaved() {
   ui::radar::saveAltMetersFromPortal(s_param_altm.getValue());
   ui::radar::saveSpeedAsTextFromPortal(s_param_spdtext.getValue());
   ui::radar::saveSpeedKmhFromPortal(s_param_spdkmh.getValue());
+  ui::radar::saveShowSpeedFromPortal(s_param_showspeed.getValue());
+  ui::radar::saveShowAltitudeFromPortal(s_param_showalt.getValue());
+
+  ui::radar::saveColorGrid(s_param_color_grid.getValue());
+  ui::radar::saveColorAirbus(s_param_color_airbus.getValue());
+  ui::radar::saveColorBoeing(s_param_color_boeing.getValue());
+  ui::radar::saveColorBeluga(s_param_color_beluga.getValue());
+  ui::radar::saveColorMilitary(s_param_color_military.getValue());
+  ui::radar::saveColorOther(s_param_color_other.getValue());
 }
 
 void attachPortalParams(WiFiManager& wm) {
   refreshPortalParamDefaults();
+  wm.addParameter(&s_header_general);
   wm.addParameter(&s_param_lat);
   wm.addParameter(&s_param_lon);
   wm.addParameter(&s_param_adsb_url);
-  wm.addParameter(&s_param_miles);
+
+  wm.addParameter(&s_header_display);
+  wm.addParameter(&s_param_showspeed);
+  wm.addParameter(&s_param_showalt);
   wm.addParameter(&s_param_runways);
-  wm.addParameter(&s_param_beluga);
-  wm.addParameter(&s_param_airbus);
-  wm.addParameter(&s_param_altm);
   wm.addParameter(&s_param_spdtext);
   wm.addParameter(&s_param_spdkmh);
+  wm.addParameter(&s_param_altm);
+  wm.addParameter(&s_param_miles);
+  wm.addParameter(&s_param_airbus);
+  wm.addParameter(&s_param_beluga);
+
+  wm.addParameter(&s_header_colors);
+  wm.addParameter(&s_param_color_grid);
+  wm.addParameter(&s_param_color_airbus);
+  wm.addParameter(&s_param_color_boeing);
+  wm.addParameter(&s_param_color_beluga);
+  wm.addParameter(&s_param_color_military);
+  wm.addParameter(&s_param_color_other);
+  wm.addParameter(&s_param_reset_colors);
+
   wm.setSaveParamsCallback(onPortalParamsSaved);
 }
 
@@ -248,6 +333,7 @@ void resetWifiCredentials() {
   services::location::clear();
   services::adsb::clearLocalUrl();
   ui::radar::unitsReset();
+  ui::radar::colorsReset();
   Serial.println("WiFi credentials, location, source, and units cleared");
 }
 
@@ -281,6 +367,12 @@ void ensureWifiManager() {
                            IPAddress(255, 255, 255, 0));
   s_wm.setHostname(config::kPortalHostname);
   s_wm.setAPCallback(onConfigPortalApStarted);
+
+  std::vector<const char*> menu = {"wifi", "custom", "info", "restart", "exit"};
+  s_wm.setMenu(menu);
+  s_wm.setCustomMenuHTML("<form action='/param' method='get'><button>Settings</button></form><br/>");
+  s_wm.setParamsPage(true);
+
   attachPortalParams(s_wm);
   s_wm_configured = true;
 }

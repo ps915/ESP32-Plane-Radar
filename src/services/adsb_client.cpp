@@ -177,6 +177,22 @@ bool isOnGround(const JsonObject& plane) {
   return strcmp(plane["alt_baro"].as<const char*>(), "ground") == 0;
 }
 
+bool isMilitary(const JsonObject& plane) {
+  if (plane["dbFlags"].is<int>()) {
+    return (plane["dbFlags"].as<int>() & 1) != 0;
+  }
+  if (plane["dbFlags"].is<bool>()) {
+    return plane["dbFlags"].as<bool>();
+  }
+  if (plane["mil"].is<int>()) {
+    return plane["mil"].as<int>() != 0;
+  }
+  if (plane["mil"].is<bool>()) {
+    return plane["mil"].as<bool>();
+  }
+  return false;
+}
+
 void copyJsonStringTrimmed(const JsonObject& obj, const char* key, char* out,
                            size_t out_len) {
   out[0] = '\0';
@@ -232,16 +248,7 @@ bool typeAllowed(const char* type, const TypeFilter& filter) {
   return filter.match(type);
 }
 
-void fillTagFields(Aircraft* ac, const JsonObject& plane,
-                   bool altitude_in_meters) {
-  copyJsonStringTrimmed(plane, "flight", ac->callsign, sizeof(ac->callsign));
-  if (ac->callsign[0] == '\0') {
-    copyJsonStringTrimmed(plane, "hex", ac->callsign, sizeof(ac->callsign));
-  }
-
-  copyJsonStringTrimmed(plane, "t", ac->type, sizeof(ac->type));
-  formatAltitudeTag(plane, ac->alt, sizeof(ac->alt), altitude_in_meters);
-}
+// fillTagFields removed and inlined for optimization.
 
 /**
  * Fetch + parse one source into s_aircraft. Returns false only on a transport,
@@ -317,17 +324,27 @@ bool fetchFromSource(WiFiClient& client, const char* url, bool server_filtered,
       continue;
     }
 
-    Aircraft* slot = &s_aircraft[n];
-    fillTagFields(slot, plane, altitude_in_meters);
-    if (!typeAllowed(slot->type, types)) {
-      continue;  // slot not consumed; next match overwrites it
+    char temp_type[5];
+    copyJsonStringTrimmed(plane, "t", temp_type, sizeof(temp_type));
+    if (!typeAllowed(temp_type, types)) {
+      continue;
     }
+
+    Aircraft* slot = &s_aircraft[n];
+    strcpy(slot->type, temp_type);
+
+    copyJsonStringTrimmed(plane, "flight", slot->callsign, sizeof(slot->callsign));
+    if (slot->callsign[0] == '\0') {
+      copyJsonStringTrimmed(plane, "hex", slot->callsign, sizeof(slot->callsign));
+    }
+    formatAltitudeTag(plane, slot->alt, sizeof(slot->alt), altitude_in_meters);
 
     slot->lat = plat;
     slot->lon = plon;
     slot->nose_deg = pickNoseHeading(plane);
     slot->track_deg = pickTrackHeading(plane);
     slot->gs_knots = pickGroundSpeed(plane);
+    slot->isMilitary = isMilitary(plane);
     ++n;
   }
 

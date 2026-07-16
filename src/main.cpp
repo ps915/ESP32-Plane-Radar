@@ -13,6 +13,7 @@
 #include "services/wifi_setup.h"
 #include "ui/radar_display.h"
 #include "ui/radar_range.h"
+#include "ui/radar_theme.h"
 #include "ui/status_screens.h"
 
 namespace {
@@ -88,6 +89,7 @@ void setup() {
   services::location::init();
   services::adsb::configInit();
   ui::radar::rangeInit();
+  ui::radar::colorsInit();
   services::adsb::setPollFn(wifiLoop);
 
   if (wifiSetupConnect()) {

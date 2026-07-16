@@ -28,6 +28,7 @@ uint16_t kColorAircraft = 0x001F;
 uint16_t kColorAcAirbus = 0x001F;
 uint16_t kColorAcBoeing = 0xF800;
 uint16_t kColorAcBeluga = 0xFDE0;
+uint16_t kColorMilitaryAircraft = 0x8400; // Olive default
 uint16_t kColorAcOther = 0xB2BF;
 uint16_t kColorTrackVector = 0xFFFF;
 uint16_t kColorTagType = 0x5DFF;
@@ -179,26 +180,75 @@ void initTagLabelMetrics() {
   s_tag_label_metrics_ready = true;
 }
 
+bool parseHexColor(const char* hex, uint8_t& r, uint8_t& g, uint8_t& b) {
+  if (hex == nullptr || hex[0] != '#' || strlen(hex) != 7) {
+    return false;
+  }
+  unsigned int rc, gc, bc;
+  if (sscanf(hex, "#%02x%02x%02x", &rc, &gc, &bc) == 3) {
+    r = static_cast<uint8_t>(rc);
+    g = static_cast<uint8_t>(gc);
+    b = static_cast<uint8_t>(bc);
+    return true;
+  }
+  return false;
+}
+
 void initPalette() {
   radar::kColorBackground = tft.color565(radar::kBgR, radar::kBgG, radar::kBgB);
-  radar::kColorGrid = tft.color565(radar::kGridR, radar::kGridG, radar::kGridB);
+
+  uint8_t r, g, b;
+  if (parseHexColor(radar::colorGrid(), r, g, b)) {
+    radar::kColorGrid = tft.color565(r, g, b);
+  } else {
+    radar::kColorGrid = tft.color565(radar::kGridR, radar::kGridG, radar::kGridB);
+  }
+
   radar::kColorLabel = tft.color565(255, 255, 255);
   radar::kColorCenter = tft.color565(255, 255, 255);
+
   // GC9A01 BGR panel: swap R/B in color565 so logical colours render correctly.
   auto panel = [](uint8_t r, uint8_t g, uint8_t b) {
     return config::kDisplayRgbOrder ? tft.color565(b, g, r)
                                     : tft.color565(r, g, b);
   };
-  radar::kColorAircraft =
-      panel(radar::kAircraftR, radar::kAircraftG, radar::kAircraftB);
-  radar::kColorAcAirbus =
-      panel(radar::kAcAirbusR, radar::kAcAirbusG, radar::kAcAirbusB);
-  radar::kColorAcBoeing =
-      panel(radar::kAcBoeingR, radar::kAcBoeingG, radar::kAcBoeingB);
-  radar::kColorAcBeluga =
-      panel(radar::kAcBelugaR, radar::kAcBelugaG, radar::kAcBelugaB);
-  radar::kColorAcOther =
-      panel(radar::kAcOtherR, radar::kAcOtherG, radar::kAcOtherB);
+
+  if (parseHexColor(radar::colorAirbus(), r, g, b)) {
+    radar::kColorAcAirbus = panel(r, g, b);
+  } else {
+    radar::kColorAcAirbus =
+        panel(radar::kAcAirbusR, radar::kAcAirbusG, radar::kAcAirbusB);
+  }
+
+  if (parseHexColor(radar::colorBoeing(), r, g, b)) {
+    radar::kColorAcBoeing = panel(r, g, b);
+  } else {
+    radar::kColorAcBoeing =
+        panel(radar::kAcBoeingR, radar::kAcBoeingG, radar::kAcBoeingB);
+  }
+
+  if (parseHexColor(radar::colorBeluga(), r, g, b)) {
+    radar::kColorAcBeluga = panel(r, g, b);
+  } else {
+    radar::kColorAcBeluga =
+        panel(radar::kAcBelugaR, radar::kAcBelugaG, radar::kAcBelugaB);
+  }
+
+  if (parseHexColor(radar::colorMilitary(), r, g, b)) {
+    radar::kColorMilitaryAircraft = panel(r, g, b);
+  } else {
+    radar::kColorMilitaryAircraft = panel(128, 128, 0); // Default Olive
+  }
+
+  if (parseHexColor(radar::colorOther(), r, g, b)) {
+    radar::kColorAcOther = panel(r, g, b);
+  } else {
+    radar::kColorAcOther =
+        panel(radar::kAcOtherR, radar::kAcOtherG, radar::kAcOtherB);
+  }
+
+  radar::kColorAircraft = radar::kColorAcOther; // fallback default
+
   radar::kColorTrackVector =
       tft.color565(radar::kTrackR, radar::kTrackG, radar::kTrackB);
   radar::kColorTagType =
@@ -258,16 +308,9 @@ bool isInsideOuterRing(int x, int y) {
   return distSqFromCenter(x, y) <= max_r * max_r;
 }
 
-/** Rim dot from true bearing; always on screen edge (even if target is 50+ km away). */
-bool beyondRingEdgeDotFromLatLon(float lat, float lon, int* out_x, int* out_y) {
-  float dx_km = 0.0f;
-  float dy_km = 0.0f;
-  float dist_km = 0.0f;
-  offsetKmFromCenter(lat, lon, &dx_km, &dy_km, &dist_km);
-  if (dist_km < 0.01f) {
-    return false;
-  }
-  if (isInsideOuterRingKm(dist_km)) {
+/** Rim dot from bearing; always on screen edge (even if target is 50+ km away). */
+bool beyondRingEdgeDotFromOffset(float dx_km, float dy_km, float dist_km, int* out_x, int* out_y) {
+  if (dist_km < 0.01f || dist_km <= innerRingMaxKm()) {
     return false;
   }
 
@@ -285,9 +328,12 @@ void drawBeyondRingDot(int x, int y, uint16_t color) {
   s_draw->fillSmoothCircle(x, y, radar::kBeyondRingDotRadiusPx, color);
 }
 
-/** Symbol colour by manufacturer of the ICAO type code (see aircraft::classify). */
-uint16_t aircraftColorForType(const char* type) {
-  switch (aircraft::classify(type)) {
+/** Symbol colour by manufacturer of the ICAO type code (see aircraft::classify) and military flag. */
+uint16_t aircraftColorForType(const services::adsb::Aircraft& ac) {
+  if (ac.isMilitary) {
+    return radar::kColorMilitaryAircraft;
+  }
+  switch (aircraft::classify(ac.type)) {
     case aircraft::Manufacturer::kAirbus:
       return radar::kColorAcAirbus;
     case aircraft::Manufacturer::kBoeing:
@@ -437,13 +483,13 @@ int measureTagBlockWidth(const services::adsb::Aircraft& plane,
       max_w = w;
     }
   }
-  if (plane.alt[0] != '\0') {
+  if (ui::radar::showAltitude() && plane.alt[0] != '\0') {
     const int w = s_draw->textWidth(plane.alt);
     if (w > max_w) {
       max_w = w;
     }
   }
-  if (speed_text[0] != '\0') {
+  if (ui::radar::showSpeed() && speed_text[0] != '\0') {
     const int w = s_draw->textWidth(speed_text);
     if (w > max_w) {
       max_w = w;
@@ -456,7 +502,7 @@ void drawAircraftTag(int x, int y, const services::adsb::Aircraft& plane) {
   initTagLabelMetrics();
   applyTagStyle();
 
-  const bool show_speed_text = ui::radar::speedAsText();
+  const bool show_speed_text = ui::radar::speedAsText() && ui::radar::showSpeed();
   char speed_text[16] = "";
   if (show_speed_text) {
     formatSpeedTag(plane.gs_knots, speed_text, sizeof(speed_text),
@@ -465,7 +511,15 @@ void drawAircraftTag(int x, int y, const services::adsb::Aircraft& plane) {
 
   const int line_h = s_draw->fontHeight();
   const int block_w = measureTagBlockWidth(plane, speed_text);
-  const int line_count = show_speed_text ? 4 : 3;
+  
+  int line_count = 2; // callsign + type
+  if (ui::radar::showAltitude() && plane.alt[0] != '\0') {
+    line_count++;
+  }
+  if (show_speed_text && speed_text[0] != '\0') {
+    line_count++;
+  }
+
   const int block_h = line_h * line_count;
   int ly = y - block_h / 2;
 
@@ -488,20 +542,20 @@ void drawAircraftTag(int x, int y, const services::adsb::Aircraft& plane) {
   if (plane.callsign[0] != '\0') {
     s_draw->setTextColor(radar::kColorLabel, radar::kColorBackground);
     s_draw->drawString(plane.callsign, anchor_x, ly);
+    ly += line_h;
   }
-  ly += line_h;
 
   if (plane.type[0] != '\0') {
     s_draw->setTextColor(radar::kColorTagType, radar::kColorBackground);
     s_draw->drawString(plane.type, anchor_x, ly);
+    ly += line_h;
   }
-  ly += line_h;
 
-  if (plane.alt[0] != '\0') {
+  if (ui::radar::showAltitude() && plane.alt[0] != '\0') {
     s_draw->setTextColor(radar::kColorTagAltitude, radar::kColorBackground);
     s_draw->drawString(plane.alt, anchor_x, ly);
+    ly += line_h;
   }
-  ly += line_h;
 
   if (show_speed_text && speed_text[0] != '\0') {
     s_draw->setTextColor(radar::kColorTagSpeed, radar::kColorBackground);
@@ -565,9 +619,11 @@ void drawAircraft() {
     offsetKmFromCenter(planes[i].lat, planes[i].lon, &dx_km, &dy_km, &dist_km);
 
     if (isInsideOuterRingKm(dist_km)) {
-      int x = 0;
-      int y = 0;
-      latLonToScreen(planes[i].lat, planes[i].lon, &x, &y);
+      const float outer_km = radar::rangeCurrent().outer_km;
+      const float px_per_km = static_cast<float>(radar::kGridOuterRadius) / outer_km;
+      const int x = radar::kCenterX + static_cast<int>(lroundf(dx_km * px_per_km));
+      const int y = radar::kCenterY - static_cast<int>(lroundf(dy_km * px_per_km));
+
       items[draw_count].index = i;
       items[draw_count].x = x;
       items[draw_count].y = y;
@@ -578,14 +634,13 @@ void drawAircraft() {
 
     int dot_x = 0;
     int dot_y = 0;
-    if (!beyondRingEdgeDotFromLatLon(planes[i].lat, planes[i].lon, &dot_x,
-                                     &dot_y)) {
+    if (!beyondRingEdgeDotFromOffset(dx_km, dy_km, dist_km, &dot_x, &dot_y)) {
       continue;
     }
     dots[dot_count].x = dot_x;
     dots[dot_count].y = dot_y;
     dots[dot_count].dist_sq = distSqFromCenter(dot_x, dot_y);
-    dots[dot_count].color = aircraftColorForType(planes[i].type);
+    dots[dot_count].color = aircraftColorForType(planes[i]);
     ++dot_count;
   }
 
@@ -599,12 +654,12 @@ void drawAircraft() {
     const size_t i = items[d].index;
     const int x = items[d].x;
     const int y = items[d].y;
-    if (!ui::radar::speedAsText()) {
+    if (ui::radar::showSpeed() && !ui::radar::speedAsText()) {
       drawSpeedVector(x, y, planes[i].nose_deg, planes[i].track_deg,
                       planes[i].gs_knots, radar::kColorTrackVector);
     }
     drawHeadingTriangle(x, y, planes[i].nose_deg,
-                        aircraftColorForType(planes[i].type));
+                        aircraftColorForType(planes[i]));
   }
   for (size_t d = 0; d < draw_count; ++d) {
     const size_t i = items[d].index;

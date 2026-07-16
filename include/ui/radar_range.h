@@ -59,6 +59,8 @@ bool altMeters();
 bool speedAsText();
 /** When on, the speed tag reads in km/h instead of knots. */
 bool speedKmh();
+bool showSpeed();
+bool showAltitude();
 /** WiFi portal checkbox: "T" = miles, otherwise km. */
 void saveMilesFromPortal(const char* checkbox_value);
 void saveRunwaysFromPortal(const char* checkbox_value);
@@ -67,6 +69,8 @@ void saveAirbusOnlyFromPortal(const char* checkbox_value);
 void saveAltMetersFromPortal(const char* checkbox_value);
 void saveSpeedAsTextFromPortal(const char* checkbox_value);
 void saveSpeedKmhFromPortal(const char* checkbox_value);
+void saveShowSpeedFromPortal(const char* checkbox_value);
+void saveShowAltitudeFromPortal(const char* checkbox_value);
 void formatRing3Label(char* buf, size_t len, float ring3_km, bool use_miles);
 void formatCurrentRing3Label(char* buf, size_t len);
 /** Reset units, runway overlay, and the aircraft filters (e.g. with WiFi credential wipe). */
