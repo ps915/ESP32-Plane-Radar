@@ -74,6 +74,7 @@ void setup() {
     statusScreenPortal();
   }
   services::location::init();
+  services::adsb::configInit();
   ui::radar::rangeInit();
   services::adsb::setPollFn(wifiLoop);
 
@@ -109,9 +110,16 @@ void loop() {
     g_wifi_down_since = 0;
     if (!g_radar_visible) {
       showRadarIfConnected();
-    } else if (millis() - g_last_adsb_fetch_ms >= config::kAdsbFetchIntervalMs) {
-      g_last_adsb_fetch_ms = millis();
-      fetchAndDrawAircraft();
+    } else {
+      // Local source has no rate limit → poll faster; the adsb.fi fallback
+      // stays at the safe 1 req/s-friendly interval.
+      const unsigned long fetch_interval =
+          services::adsb::usingLocalSource() ? config::kAdsbLocalFetchIntervalMs
+                                             : config::kAdsbFetchIntervalMs;
+      if (millis() - g_last_adsb_fetch_ms >= fetch_interval) {
+        g_last_adsb_fetch_ms = millis();
+        fetchAndDrawAircraft();
+      }
     }
   }
 
