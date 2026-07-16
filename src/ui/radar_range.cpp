@@ -18,6 +18,8 @@ constexpr char kPrefsRunwaysKey[] = "showRwys";
 constexpr char kPrefsBelugaKey[] = "belugaOnly";
 constexpr char kPrefsAirbusKey[] = "airbusOnly";
 constexpr char kPrefsAltMKey[] = "altMeters";
+constexpr char kPrefsSpdTextKey[] = "spdText";
+constexpr char kPrefsSpdKmhKey[] = "spdKmh";
 constexpr uint8_t kDefaultRangeIndex = 2;  // 10 km ring
 constexpr float kKmPerMile = 1.609344f;
 
@@ -31,6 +33,10 @@ bool s_beluga_only = false;
 bool s_airbus_only = false;
 /** false = altitude tags in feet (source unit); true = meters. */
 bool s_alt_meters = false;
+/** false = speed shown as track vector line (default); true = numeric tag. */
+bool s_speed_as_text = false;
+/** false = speed tag in knots (source unit); true = km/h. */
+bool s_speed_kmh = false;
 
 void saveRangeIndex() {
   if (!s_prefs.begin(kPrefsNamespace, false)) {
@@ -80,6 +86,22 @@ void saveAltMeters() {
   s_prefs.end();
 }
 
+void saveSpeedAsText() {
+  if (!s_prefs.begin(kPrefsNamespace, false)) {
+    return;
+  }
+  s_prefs.putBool(kPrefsSpdTextKey, s_speed_as_text);
+  s_prefs.end();
+}
+
+void saveSpeedKmh() {
+  if (!s_prefs.begin(kPrefsNamespace, false)) {
+    return;
+  }
+  s_prefs.putBool(kPrefsSpdKmhKey, s_speed_kmh);
+  s_prefs.end();
+}
+
 bool portalCheckboxChecked(const char* value) {
   if (value == nullptr || value[0] == '\0') {
     return false;
@@ -106,6 +128,8 @@ void rangeInit() {
   s_beluga_only = s_prefs.getBool(kPrefsBelugaKey, false);
   s_airbus_only = s_prefs.getBool(kPrefsAirbusKey, false);
   s_alt_meters = s_prefs.getBool(kPrefsAltMKey, false);
+  s_speed_as_text = s_prefs.getBool(kPrefsSpdTextKey, false);
+  s_speed_kmh = s_prefs.getBool(kPrefsSpdKmhKey, false);
   s_prefs.end();
 }
 
@@ -134,6 +158,10 @@ bool belugaOnly() { return s_beluga_only; }
 bool airbusOnly() { return s_airbus_only; }
 
 bool altMeters() { return s_alt_meters; }
+
+bool speedAsText() { return s_speed_as_text; }
+
+bool speedKmh() { return s_speed_kmh; }
 
 void saveMilesFromPortal(const char* checkbox_value) {
   s_use_miles = portalCheckboxChecked(checkbox_value);
@@ -165,6 +193,18 @@ void saveAltMetersFromPortal(const char* checkbox_value) {
   Serial.printf("Altitude units: %s\n", s_alt_meters ? "meters" : "feet");
 }
 
+void saveSpeedAsTextFromPortal(const char* checkbox_value) {
+  s_speed_as_text = portalCheckboxChecked(checkbox_value);
+  saveSpeedAsText();
+  Serial.printf("Speed display: %s\n", s_speed_as_text ? "text" : "vector line");
+}
+
+void saveSpeedKmhFromPortal(const char* checkbox_value) {
+  s_speed_kmh = portalCheckboxChecked(checkbox_value);
+  saveSpeedKmh();
+  Serial.printf("Speed units: %s\n", s_speed_kmh ? "km/h" : "knots");
+}
+
 void formatRing3Label(char* buf, size_t len, float ring3_km, bool use_miles) {
   if (use_miles) {
     const int mi = static_cast<int>(lroundf(ring3_km / kKmPerMile));
@@ -185,12 +225,16 @@ void unitsReset() {
   s_beluga_only = false;
   s_airbus_only = false;
   s_alt_meters = false;
+  s_speed_as_text = false;
+  s_speed_kmh = false;
   if (s_prefs.begin(kPrefsNamespace, false)) {
     s_prefs.remove(kPrefsMilesKey);
     s_prefs.remove(kPrefsRunwaysKey);
     s_prefs.remove(kPrefsBelugaKey);
     s_prefs.remove(kPrefsAirbusKey);
     s_prefs.remove(kPrefsAltMKey);
+    s_prefs.remove(kPrefsSpdTextKey);
+    s_prefs.remove(kPrefsSpdKmhKey);
     s_prefs.end();
   }
 }

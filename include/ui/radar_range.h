@@ -55,12 +55,18 @@ bool belugaOnly();
 bool airbusOnly();
 /** When on, aircraft altitude tags read in meters instead of feet. */
 bool altMeters();
+/** When on, speed is shown as a numeric tag line instead of the track vector line. */
+bool speedAsText();
+/** When on, the speed tag reads in km/h instead of knots. */
+bool speedKmh();
 /** WiFi portal checkbox: "T" = miles, otherwise km. */
 void saveMilesFromPortal(const char* checkbox_value);
 void saveRunwaysFromPortal(const char* checkbox_value);
 void saveBelugaOnlyFromPortal(const char* checkbox_value);
 void saveAirbusOnlyFromPortal(const char* checkbox_value);
 void saveAltMetersFromPortal(const char* checkbox_value);
+void saveSpeedAsTextFromPortal(const char* checkbox_value);
+void saveSpeedKmhFromPortal(const char* checkbox_value);
 void formatRing3Label(char* buf, size_t len, float ring3_km, bool use_miles);
 void formatCurrentRing3Label(char* buf, size_t len);
 /** Reset units, runway overlay, and the aircraft filters (e.g. with WiFi credential wipe). */

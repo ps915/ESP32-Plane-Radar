@@ -96,6 +96,14 @@ char s_altm_checkbox_attrs[32] = "type=\"checkbox\"";
 WiFiManagerParameter s_param_altm("alt_meters", "Show altitude in meters", "T", 2,
                                   s_altm_checkbox_attrs, WFM_LABEL_AFTER);
 
+char s_spdtext_checkbox_attrs[32] = "type=\"checkbox\"";
+WiFiManagerParameter s_param_spdtext("speed_text", "Show speed as text (off = vector line)",
+                                     "T", 2, s_spdtext_checkbox_attrs, WFM_LABEL_AFTER);
+
+char s_spdkmh_checkbox_attrs[32] = "type=\"checkbox\"";
+WiFiManagerParameter s_param_spdkmh("speed_kmh", "Speed in km/h (off = knots)", "T", 2,
+                                    s_spdkmh_checkbox_attrs, WFM_LABEL_AFTER);
+
 void refreshPortalParamDefaults() {
   char lat_buf[kCoordParamLen + 1];
   char lon_buf[kCoordParamLen + 1];
@@ -118,6 +126,12 @@ void refreshPortalParamDefaults() {
   snprintf(s_altm_checkbox_attrs, sizeof(s_altm_checkbox_attrs),
            "type=\"checkbox\"%s", ui::radar::altMeters() ? " checked" : "");
   s_param_altm.setValue("T", 2);
+  snprintf(s_spdtext_checkbox_attrs, sizeof(s_spdtext_checkbox_attrs),
+           "type=\"checkbox\"%s", ui::radar::speedAsText() ? " checked" : "");
+  s_param_spdtext.setValue("T", 2);
+  snprintf(s_spdkmh_checkbox_attrs, sizeof(s_spdkmh_checkbox_attrs),
+           "type=\"checkbox\"%s", ui::radar::speedKmh() ? " checked" : "");
+  s_param_spdkmh.setValue("T", 2);
 }
 
 void onPortalParamsSaved() {
@@ -130,6 +144,8 @@ void onPortalParamsSaved() {
   ui::radar::saveBelugaOnlyFromPortal(s_param_beluga.getValue());
   ui::radar::saveAirbusOnlyFromPortal(s_param_airbus.getValue());
   ui::radar::saveAltMetersFromPortal(s_param_altm.getValue());
+  ui::radar::saveSpeedAsTextFromPortal(s_param_spdtext.getValue());
+  ui::radar::saveSpeedKmhFromPortal(s_param_spdkmh.getValue());
 }
 
 void attachPortalParams(WiFiManager& wm) {
@@ -141,6 +157,8 @@ void attachPortalParams(WiFiManager& wm) {
   wm.addParameter(&s_param_beluga);
   wm.addParameter(&s_param_airbus);
   wm.addParameter(&s_param_altm);
+  wm.addParameter(&s_param_spdtext);
+  wm.addParameter(&s_param_spdkmh);
   wm.setSaveParamsCallback(onPortalParamsSaved);
 }
 

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 
 #include "aircraft_type.h"
@@ -31,6 +32,7 @@ uint16_t kColorAcOther = 0xB2BF;
 uint16_t kColorTrackVector = 0xFFFF;
 uint16_t kColorTagType = 0x5DFF;
 uint16_t kColorTagAltitude = 0xFFE0;
+uint16_t kColorTagSpeed = 0x9E8F;
 uint16_t kColorRunway = 0x4D5F;
 uint16_t kColorRunwayLabel = 0x7DFF;
 
@@ -203,6 +205,8 @@ void initPalette() {
       tft.color565(radar::kTagTypeR, radar::kTagTypeG, radar::kTagTypeB);
   radar::kColorTagAltitude =
       tft.color565(radar::kTagAltR, radar::kTagAltG, radar::kTagAltB);
+  radar::kColorTagSpeed =
+      tft.color565(radar::kTagSpdR, radar::kTagSpdG, radar::kTagSpdB);
   radar::kColorRunway =
       tft.color565(radar::kRunwayR, radar::kRunwayG, radar::kRunwayB);
   radar::kColorRunwayLabel = tft.color565(radar::kRunwayLabelR, radar::kRunwayLabelG,
@@ -402,7 +406,23 @@ void applyTagStyle() {
   }
 }
 
-int measureTagBlockWidth(const services::adsb::Aircraft& plane) {
+/** "445 kt" / "825 km/h"; empty when speed is unknown (gs <= 0). */
+void formatSpeedTag(float gs_knots, char* out, size_t out_len, bool kmh) {
+  out[0] = '\0';
+  if (out_len == 0 || gs_knots <= 0.0f) {
+    return;
+  }
+  if (kmh) {
+    constexpr float kKmhPerKnot = 1.852f;
+    snprintf(out, out_len, "%d km/h",
+             static_cast<int>(lroundf(gs_knots * kKmhPerKnot)));
+  } else {
+    snprintf(out, out_len, "%d kt", static_cast<int>(lroundf(gs_knots)));
+  }
+}
+
+int measureTagBlockWidth(const services::adsb::Aircraft& plane,
+                         const char* speed_text) {
   applyTagStyle();
   int max_w = 0;
   if (plane.callsign[0] != '\0') {
@@ -423,6 +443,12 @@ int measureTagBlockWidth(const services::adsb::Aircraft& plane) {
       max_w = w;
     }
   }
+  if (speed_text[0] != '\0') {
+    const int w = s_draw->textWidth(speed_text);
+    if (w > max_w) {
+      max_w = w;
+    }
+  }
   return max_w;
 }
 
@@ -430,9 +456,17 @@ void drawAircraftTag(int x, int y, const services::adsb::Aircraft& plane) {
   initTagLabelMetrics();
   applyTagStyle();
 
+  const bool show_speed_text = ui::radar::speedAsText();
+  char speed_text[16] = "";
+  if (show_speed_text) {
+    formatSpeedTag(plane.gs_knots, speed_text, sizeof(speed_text),
+                  ui::radar::speedKmh());
+  }
+
   const int line_h = s_draw->fontHeight();
-  const int block_w = measureTagBlockWidth(plane);
-  const int block_h = line_h * 3;
+  const int block_w = measureTagBlockWidth(plane, speed_text);
+  const int line_count = show_speed_text ? 4 : 3;
+  const int block_h = line_h * line_count;
   int ly = y - block_h / 2;
 
   const int symbol_half =
@@ -466,6 +500,12 @@ void drawAircraftTag(int x, int y, const services::adsb::Aircraft& plane) {
   if (plane.alt[0] != '\0') {
     s_draw->setTextColor(radar::kColorTagAltitude, radar::kColorBackground);
     s_draw->drawString(plane.alt, anchor_x, ly);
+  }
+  ly += line_h;
+
+  if (show_speed_text && speed_text[0] != '\0') {
+    s_draw->setTextColor(radar::kColorTagSpeed, radar::kColorBackground);
+    s_draw->drawString(speed_text, anchor_x, ly);
   }
 }
 
@@ -559,8 +599,10 @@ void drawAircraft() {
     const size_t i = items[d].index;
     const int x = items[d].x;
     const int y = items[d].y;
-    drawSpeedVector(x, y, planes[i].nose_deg, planes[i].track_deg,
-                    planes[i].gs_knots, radar::kColorTrackVector);
+    if (!ui::radar::speedAsText()) {
+      drawSpeedVector(x, y, planes[i].nose_deg, planes[i].track_deg,
+                      planes[i].gs_knots, radar::kColorTrackVector);
+    }
     drawHeadingTriangle(x, y, planes[i].nose_deg,
                         aircraftColorForType(planes[i].type));
   }
