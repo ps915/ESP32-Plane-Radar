@@ -6,7 +6,6 @@
 #include <ArduinoJson.h>
 
 #include <cstring>
-#include <strings.h>
 
 #include "config.h"
 
@@ -166,7 +165,8 @@ void copyJsonStringTrimmed(const JsonObject& obj, const char* key, char* out,
   out[n] = '\0';
 }
 
-void formatAltitudeTag(const JsonObject& plane, char* out, size_t out_len) {
+void formatAltitudeTag(const JsonObject& plane, char* out, size_t out_len,
+                       bool in_meters) {
   out[0] = '\0';
   if (out_len == 0) {
     return;
@@ -181,37 +181,39 @@ void formatAltitudeTag(const JsonObject& plane, char* out, size_t out_len) {
     }
   }
 
-  float alt = 0.0f;
+  float alt = 0.0f;  // adsb.fi reports altitude in feet.
   if (readJsonFloat(plane, "alt_baro", &alt) ||
       readJsonFloat(plane, "alt_geom", &alt)) {
-    snprintf(out, out_len, "%d ft", static_cast<int>(lroundf(alt)));
+    if (in_meters) {
+      constexpr float kMetersPerFoot = 0.3048f;
+      snprintf(out, out_len, "%d m",
+               static_cast<int>(lroundf(alt * kMetersPerFoot)));
+    } else {
+      snprintf(out, out_len, "%d ft", static_cast<int>(lroundf(alt)));
+    }
   }
 }
 
 /** Match against the already-trimmed Aircraft::type — raw "t" may carry padding. */
 bool typeAllowed(const char* type, const TypeFilter& filter) {
-  if (filter.codes == nullptr || filter.count == 0) {
+  if (filter.match == nullptr) {
     return true;
   }
   if (type == nullptr || type[0] == '\0') {
     return false;
   }
-  for (size_t i = 0; i < filter.count; ++i) {
-    if (strcasecmp(type, filter.codes[i]) == 0) {
-      return true;
-    }
-  }
-  return false;
+  return filter.match(type);
 }
 
-void fillTagFields(Aircraft* ac, const JsonObject& plane) {
+void fillTagFields(Aircraft* ac, const JsonObject& plane,
+                   bool altitude_in_meters) {
   copyJsonStringTrimmed(plane, "flight", ac->callsign, sizeof(ac->callsign));
   if (ac->callsign[0] == '\0') {
     copyJsonStringTrimmed(plane, "hex", ac->callsign, sizeof(ac->callsign));
   }
 
   copyJsonStringTrimmed(plane, "t", ac->type, sizeof(ac->type));
-  formatAltitudeTag(plane, ac->alt, sizeof(ac->alt));
+  formatAltitudeTag(plane, ac->alt, sizeof(ac->alt), altitude_in_meters);
 }
 
 }  // namespace
@@ -223,7 +225,7 @@ size_t aircraftCount() { return s_aircraft_count; }
 const Aircraft* aircraftList() { return s_aircraft; }
 
 bool fetchUpdate(double center_lat, double center_lon, float fetch_radius_km,
-                 const TypeFilter& types) {
+                 const TypeFilter& types, bool altitude_in_meters) {
   const float dist_nm = kmToNauticalMiles(fetch_radius_km);
 
   String url = kApiBase;
@@ -284,7 +286,7 @@ bool fetchUpdate(double center_lat, double center_lon, float fetch_radius_km,
     }
 
     Aircraft* slot = &s_aircraft[n];
-    fillTagFields(slot, plane);
+    fillTagFields(slot, plane, altitude_in_meters);
     if (!typeAllowed(slot->type, types)) {
       continue;  // slot not consumed; next match overwrites it
     }

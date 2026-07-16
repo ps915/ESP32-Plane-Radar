@@ -67,6 +67,30 @@ constexpr const char* kBelugaTypeCodes[] = {"A3ST", "A337"};
 constexpr size_t kBelugaTypeCodeCount =
     sizeof(kBelugaTypeCodes) / sizeof(kBelugaTypeCodes[0]);
 
+/**
+ * ICAO DOC 8643 type designators for the Airbus fleet (excluding the Beluga
+ * codes above, which are checked first so they keep their own colour). Matched
+ * case-insensitively against the ADS-B "t" field. BCS1/BCS3 = A220 (ex-CSeries),
+ * an Airbus product. Nachpflegbar, wenn neue Muster auftauchen.
+ */
+constexpr const char* kAirbusTypeCodes[] = {
+    "A318", "A319", "A19N", "A320", "A20N", "A321", "A21N",
+    "A306", "A30B", "A310", "A332", "A333", "A338", "A339",
+    "A342", "A343", "A345", "A346", "A359", "A35K", "A388",
+    "A400", "BCS1", "BCS3"};
+constexpr size_t kAirbusTypeCodeCount =
+    sizeof(kAirbusTypeCodes) / sizeof(kAirbusTypeCodes[0]);
+
+/** ICAO DOC 8643 type designators for the Boeing fleet (incl. 737 MAX B3xM). */
+constexpr const char* kBoeingTypeCodes[] = {
+    "B703", "B712", "B721", "B722", "B731", "B732", "B733", "B734",
+    "B735", "B736", "B737", "B738", "B739", "B37M", "B38M", "B39M",
+    "B3XM", "B741", "B742", "B743", "B744", "B748", "B74S", "BLCF",
+    "B752", "B753", "B762", "B763", "B764", "B772", "B773", "B77L",
+    "B77W", "B788", "B789", "B78X"};
+constexpr size_t kBoeingTypeCodeCount =
+    sizeof(kBoeingTypeCodes) / sizeof(kBoeingTypeCodes[0]);
+
 // --- UI colors (RGB565) — status screens ---
 constexpr uint16_t kColorBlack = 0x0000;
 constexpr uint16_t kColorYellow = 0xFFE0;

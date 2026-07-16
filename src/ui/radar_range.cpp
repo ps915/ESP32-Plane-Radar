@@ -16,7 +16,9 @@ constexpr char kPrefsRangeKey[] = "rangeIdx";
 constexpr char kPrefsMilesKey[] = "useMiles";
 constexpr char kPrefsRunwaysKey[] = "showRwys";
 constexpr char kPrefsBelugaKey[] = "belugaOnly";
-constexpr uint8_t kDefaultRangeIndex = 1;  // 10 km ring
+constexpr char kPrefsAirbusKey[] = "airbusOnly";
+constexpr char kPrefsAltMKey[] = "altMeters";
+constexpr uint8_t kDefaultRangeIndex = 2;  // 10 km ring
 constexpr float kKmPerMile = 1.609344f;
 
 Preferences s_prefs;
@@ -25,6 +27,10 @@ bool s_use_miles = false;
 bool s_show_runways = true;
 /** Off by default: on, the radar is empty unless a Beluga is actually in range. */
 bool s_beluga_only = false;
+/** Off by default: on, only Airbus (incl. Beluga) are shown. */
+bool s_airbus_only = false;
+/** false = altitude tags in feet (source unit); true = meters. */
+bool s_alt_meters = false;
 
 void saveRangeIndex() {
   if (!s_prefs.begin(kPrefsNamespace, false)) {
@@ -58,6 +64,22 @@ void saveBelugaOnly() {
   s_prefs.end();
 }
 
+void saveAirbusOnly() {
+  if (!s_prefs.begin(kPrefsNamespace, false)) {
+    return;
+  }
+  s_prefs.putBool(kPrefsAirbusKey, s_airbus_only);
+  s_prefs.end();
+}
+
+void saveAltMeters() {
+  if (!s_prefs.begin(kPrefsNamespace, false)) {
+    return;
+  }
+  s_prefs.putBool(kPrefsAltMKey, s_alt_meters);
+  s_prefs.end();
+}
+
 bool portalCheckboxChecked(const char* value) {
   if (value == nullptr || value[0] == '\0') {
     return false;
@@ -82,6 +104,8 @@ void rangeInit() {
   s_use_miles = s_prefs.getBool(kPrefsMilesKey, false);
   s_show_runways = s_prefs.getBool(kPrefsRunwaysKey, true);
   s_beluga_only = s_prefs.getBool(kPrefsBelugaKey, false);
+  s_airbus_only = s_prefs.getBool(kPrefsAirbusKey, false);
+  s_alt_meters = s_prefs.getBool(kPrefsAltMKey, false);
   s_prefs.end();
 }
 
@@ -107,6 +131,10 @@ bool showRunways() { return s_show_runways; }
 
 bool belugaOnly() { return s_beluga_only; }
 
+bool airbusOnly() { return s_airbus_only; }
+
+bool altMeters() { return s_alt_meters; }
+
 void saveMilesFromPortal(const char* checkbox_value) {
   s_use_miles = portalCheckboxChecked(checkbox_value);
   saveUseMiles();
@@ -123,6 +151,18 @@ void saveBelugaOnlyFromPortal(const char* checkbox_value) {
   s_beluga_only = portalCheckboxChecked(checkbox_value);
   saveBelugaOnly();
   Serial.printf("Beluga filter: %s\n", s_beluga_only ? "on" : "off");
+}
+
+void saveAirbusOnlyFromPortal(const char* checkbox_value) {
+  s_airbus_only = portalCheckboxChecked(checkbox_value);
+  saveAirbusOnly();
+  Serial.printf("Airbus filter: %s\n", s_airbus_only ? "on" : "off");
+}
+
+void saveAltMetersFromPortal(const char* checkbox_value) {
+  s_alt_meters = portalCheckboxChecked(checkbox_value);
+  saveAltMeters();
+  Serial.printf("Altitude units: %s\n", s_alt_meters ? "meters" : "feet");
 }
 
 void formatRing3Label(char* buf, size_t len, float ring3_km, bool use_miles) {
@@ -143,10 +183,14 @@ void unitsReset() {
   s_use_miles = false;
   s_show_runways = true;
   s_beluga_only = false;
+  s_airbus_only = false;
+  s_alt_meters = false;
   if (s_prefs.begin(kPrefsNamespace, false)) {
     s_prefs.remove(kPrefsMilesKey);
     s_prefs.remove(kPrefsRunwaysKey);
     s_prefs.remove(kPrefsBelugaKey);
+    s_prefs.remove(kPrefsAirbusKey);
+    s_prefs.remove(kPrefsAltMKey);
     s_prefs.end();
   }
 }

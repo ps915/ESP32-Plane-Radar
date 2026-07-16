@@ -88,6 +88,14 @@ char s_beluga_checkbox_attrs[32] = "type=\"checkbox\"";
 WiFiManagerParameter s_param_beluga("beluga_only", "Only show Airbus Beluga", "T", 2,
                                     s_beluga_checkbox_attrs, WFM_LABEL_AFTER);
 
+char s_airbus_checkbox_attrs[32] = "type=\"checkbox\"";
+WiFiManagerParameter s_param_airbus("airbus_only", "Only show Airbus aircraft", "T", 2,
+                                    s_airbus_checkbox_attrs, WFM_LABEL_AFTER);
+
+char s_altm_checkbox_attrs[32] = "type=\"checkbox\"";
+WiFiManagerParameter s_param_altm("alt_meters", "Show altitude in meters", "T", 2,
+                                  s_altm_checkbox_attrs, WFM_LABEL_AFTER);
+
 void refreshPortalParamDefaults() {
   char lat_buf[kCoordParamLen + 1];
   char lon_buf[kCoordParamLen + 1];
@@ -104,6 +112,12 @@ void refreshPortalParamDefaults() {
   snprintf(s_beluga_checkbox_attrs, sizeof(s_beluga_checkbox_attrs),
            "type=\"checkbox\"%s", ui::radar::belugaOnly() ? " checked" : "");
   s_param_beluga.setValue("T", 2);
+  snprintf(s_airbus_checkbox_attrs, sizeof(s_airbus_checkbox_attrs),
+           "type=\"checkbox\"%s", ui::radar::airbusOnly() ? " checked" : "");
+  s_param_airbus.setValue("T", 2);
+  snprintf(s_altm_checkbox_attrs, sizeof(s_altm_checkbox_attrs),
+           "type=\"checkbox\"%s", ui::radar::altMeters() ? " checked" : "");
+  s_param_altm.setValue("T", 2);
 }
 
 void onPortalParamsSaved() {
@@ -114,6 +128,8 @@ void onPortalParamsSaved() {
   ui::radar::saveMilesFromPortal(s_param_miles.getValue());
   ui::radar::saveRunwaysFromPortal(s_param_runways.getValue());
   ui::radar::saveBelugaOnlyFromPortal(s_param_beluga.getValue());
+  ui::radar::saveAirbusOnlyFromPortal(s_param_airbus.getValue());
+  ui::radar::saveAltMetersFromPortal(s_param_altm.getValue());
 }
 
 void attachPortalParams(WiFiManager& wm) {
@@ -123,6 +139,8 @@ void attachPortalParams(WiFiManager& wm) {
   wm.addParameter(&s_param_miles);
   wm.addParameter(&s_param_runways);
   wm.addParameter(&s_param_beluga);
+  wm.addParameter(&s_param_airbus);
+  wm.addParameter(&s_param_altm);
   wm.setSaveParamsCallback(onPortalParamsSaved);
 }
 

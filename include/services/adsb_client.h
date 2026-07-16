@@ -25,22 +25,29 @@ using PollFn = void (*)();
 void setPollFn(PollFn fn);
 
 /**
- * Allowlist of ICAO DOC 8643 type designators (the ADS-B "t" field), e.g. "A3ST".
- * Default (codes == nullptr) keeps every aircraft. Matching is case-insensitive.
- * Aircraft that report no type are dropped when a filter is active — an unknown
- * type cannot be proven to be on the list.
+ * Predicate over an already-trimmed ICAO DOC 8643 type designator (the ADS-B
+ * "t" field), e.g. "A3ST". Returns true to keep the aircraft. Supplied by the
+ * caller (see aircraft::isBeluga / isAirbus) so the services layer stays free
+ * of manufacturer knowledge.
+ */
+using TypeMatchFn = bool (*)(const char* type);
+
+/**
+ * Type filter. Default (match == nullptr) keeps every aircraft. When a match
+ * function is set, aircraft that report no type are dropped — an unknown type
+ * cannot be proven to pass the predicate.
  */
 struct TypeFilter {
-  const char* const* codes = nullptr;
-  size_t count = 0;
+  TypeMatchFn match = nullptr;
 };
 
 /**
  * Fetch aircraft within fetch_radius_km of center_lat/lon from adsb.fi.
  * Filtering happens while parsing, before the kMaxAircraft cap applies, so the
  * slots go to matching traffic instead of whatever arrived first.
+ * altitude_in_meters formats the altitude tag in meters instead of feet.
  */
 bool fetchUpdate(double center_lat, double center_lon, float fetch_radius_km,
-                 const TypeFilter& types = {});
+                 const TypeFilter& types = {}, bool altitude_in_meters = false);
 
 }  // namespace services::adsb

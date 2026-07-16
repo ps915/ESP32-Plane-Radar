@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdlib>
 
+#include "aircraft_type.h"
 #include "config.h"
 #include "hardware/display.h"
 #include "hardware/display_font.h"
@@ -23,6 +24,10 @@ uint16_t kColorGrid = 0x0320;
 uint16_t kColorLabel = 0xFFFF;
 uint16_t kColorCenter = 0xFFFF;
 uint16_t kColorAircraft = 0x001F;
+uint16_t kColorAcAirbus = 0x001F;
+uint16_t kColorAcBoeing = 0xF800;
+uint16_t kColorAcBeluga = 0xFDE0;
+uint16_t kColorAcOther = 0xB2BF;
 uint16_t kColorTrackVector = 0xFFFF;
 uint16_t kColorTagType = 0x5DFF;
 uint16_t kColorTagAltitude = 0xFFE0;
@@ -177,14 +182,21 @@ void initPalette() {
   radar::kColorGrid = tft.color565(radar::kGridR, radar::kGridG, radar::kGridB);
   radar::kColorLabel = tft.color565(255, 255, 255);
   radar::kColorCenter = tft.color565(255, 255, 255);
-  // GC9A01 BGR panel: swap R/B in color565 so logical red renders red on screen.
-  if (config::kDisplayRgbOrder) {
-    radar::kColorAircraft =
-        tft.color565(radar::kAircraftB, radar::kAircraftG, radar::kAircraftR);
-  } else {
-    radar::kColorAircraft =
-        tft.color565(radar::kAircraftR, radar::kAircraftG, radar::kAircraftB);
-  }
+  // GC9A01 BGR panel: swap R/B in color565 so logical colours render correctly.
+  auto panel = [](uint8_t r, uint8_t g, uint8_t b) {
+    return config::kDisplayRgbOrder ? tft.color565(b, g, r)
+                                    : tft.color565(r, g, b);
+  };
+  radar::kColorAircraft =
+      panel(radar::kAircraftR, radar::kAircraftG, radar::kAircraftB);
+  radar::kColorAcAirbus =
+      panel(radar::kAcAirbusR, radar::kAcAirbusG, radar::kAcAirbusB);
+  radar::kColorAcBoeing =
+      panel(radar::kAcBoeingR, radar::kAcBoeingG, radar::kAcBoeingB);
+  radar::kColorAcBeluga =
+      panel(radar::kAcBelugaR, radar::kAcBelugaG, radar::kAcBelugaB);
+  radar::kColorAcOther =
+      panel(radar::kAcOtherR, radar::kAcOtherG, radar::kAcOtherB);
   radar::kColorTrackVector =
       tft.color565(radar::kTrackR, radar::kTrackG, radar::kTrackB);
   radar::kColorTagType =
@@ -265,9 +277,23 @@ bool beyondRingEdgeDotFromLatLon(float lat, float lon, int* out_x, int* out_y) {
   return true;
 }
 
-void drawBeyondRingDot(int x, int y) {
-  s_draw->fillSmoothCircle(x, y, radar::kBeyondRingDotRadiusPx,
-                           radar::kColorAircraft);
+void drawBeyondRingDot(int x, int y, uint16_t color) {
+  s_draw->fillSmoothCircle(x, y, radar::kBeyondRingDotRadiusPx, color);
+}
+
+/** Symbol colour by manufacturer of the ICAO type code (see aircraft::classify). */
+uint16_t aircraftColorForType(const char* type) {
+  switch (aircraft::classify(type)) {
+    case aircraft::Manufacturer::kAirbus:
+      return radar::kColorAcAirbus;
+    case aircraft::Manufacturer::kBoeing:
+      return radar::kColorAcBoeing;
+    case aircraft::Manufacturer::kBeluga:
+      return radar::kColorAcBeluga;
+    case aircraft::Manufacturer::kOther:
+      break;
+  }
+  return radar::kColorAcOther;
 }
 
 void clipPointToOuterRing(int x0, int y0, int* x1, int* y1) {
@@ -454,6 +480,7 @@ struct BeyondDotDrawItem {
   int x = 0;
   int y = 0;
   int dist_sq = 0;
+  uint16_t color = 0;
 };
 
 void sortDrawItemsFarFirst(AircraftDrawItem* items, size_t count) {
@@ -518,12 +545,13 @@ void drawAircraft() {
     dots[dot_count].x = dot_x;
     dots[dot_count].y = dot_y;
     dots[dot_count].dist_sq = distSqFromCenter(dot_x, dot_y);
+    dots[dot_count].color = aircraftColorForType(planes[i].type);
     ++dot_count;
   }
 
   sortBeyondDotsFarFirst(dots, dot_count);
   for (size_t d = 0; d < dot_count; ++d) {
-    drawBeyondRingDot(dots[d].x, dots[d].y);
+    drawBeyondRingDot(dots[d].x, dots[d].y, dots[d].color);
   }
 
   sortDrawItemsFarFirst(items, draw_count);
@@ -533,7 +561,8 @@ void drawAircraft() {
     const int y = items[d].y;
     drawSpeedVector(x, y, planes[i].nose_deg, planes[i].track_deg,
                     planes[i].gs_knots, radar::kColorTrackVector);
-    drawHeadingTriangle(x, y, planes[i].nose_deg, radar::kColorAircraft);
+    drawHeadingTriangle(x, y, planes[i].nose_deg,
+                        aircraftColorForType(planes[i].type));
   }
   for (size_t d = 0; d < draw_count; ++d) {
     const size_t i = items[d].index;

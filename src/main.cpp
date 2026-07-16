@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 
+#include "aircraft_type.h"
 #include "config.h"
 #include "hardware/display.h"
 #include "services/adsb_client.h"
@@ -53,14 +54,17 @@ void fetchAndDrawAircraft() {
   const float fetch_km = ui::radar::fetchRadiusKm();
 
   // Read per fetch, so a portal toggle takes effect without a reboot.
+  // Beluga wins if both filters are on (it is the stricter subset).
   services::adsb::TypeFilter types;
   if (ui::radar::belugaOnly()) {
-    types.codes = config::kBelugaTypeCodes;
-    types.count = config::kBelugaTypeCodeCount;
+    types.match = &aircraft::isBeluga;
+  } else if (ui::radar::airbusOnly()) {
+    types.match = &aircraft::isAirbus;
   }
 
   if (!services::adsb::fetchUpdate(services::location::lat(),
-                                   services::location::lon(), fetch_km, types)) {
+                                   services::location::lon(), fetch_km, types,
+                                   ui::radar::altMeters())) {
     handleBootButton();
     return;
   }
