@@ -51,8 +51,19 @@ constexpr bool kDisplayRgbOrder = true;
 constexpr double kDefaultRadarLat = 53.5748;
 constexpr double kDefaultRadarLon = 9.4964;
 
-/** Poll adsb.fi (API public limit: 1 req/s). */
+/** Poll adsb.fi (API public limit: 1 req/s) — the fallback source's safe rate. */
 constexpr unsigned long kAdsbFetchIntervalMs = 3000;
+/**
+ * Poll interval while the local tar1090/adsb.im source is active. It has no
+ * rate limit, but readsb rewrites aircraft.json only ~1×/s, so faster than this
+ * just re-reads identical data — don't drop below ~1000 ms.
+ */
+constexpr unsigned long kAdsbLocalFetchIntervalMs = 1000;
+/**
+ * Per-fetch budget for the local source. Kept short so a powered-off Pi fails
+ * over to adsb.fi within one fetch cycle instead of stalling loop() for ~10 s.
+ */
+constexpr unsigned long kAdsbLocalTimeoutMs = 1500;
 /** Legacy scale unused — fetch uses radar::fetchRadiusKm() to screen edge. */
 constexpr float kAdsbFetchRadiusScale = 1.0f;
 /** false = hide aircraft with alt_baro "ground"; true = show them too. */

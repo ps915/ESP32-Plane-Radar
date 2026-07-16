@@ -14,6 +14,7 @@
 #endif
 
 #include "config.h"
+#include "services/adsb_client.h"
 #include "services/radar_location.h"
 #include "ui/radar_range.h"
 #include "ui/status_screens.h"
@@ -76,6 +77,13 @@ WiFiManagerParameter s_param_lat("radar_lat", "Latitude (deg)", "0",
 WiFiManagerParameter s_param_lon("radar_lon", "Longitude (deg)", "0",
                                 kCoordParamLen, kCoordInputAttrs);
 
+constexpr int kAdsbUrlParamLen = 120;
+constexpr char kAdsbUrlInputAttrs[] =
+    " type=\"url\" placeholder=\"http://192.168.0.199:8080/data/aircraft.json\"";
+WiFiManagerParameter s_param_adsb_url(
+    "adsb_url", "Local ADS-B URL (tar1090 aircraft.json — empty = adsb.fi)", "",
+    kAdsbUrlParamLen, kAdsbUrlInputAttrs);
+
 char s_miles_checkbox_attrs[32] = "type=\"checkbox\"";
 WiFiManagerParameter s_param_miles("use_miles", "Display distances in miles", "T", 2,
                                    s_miles_checkbox_attrs, WFM_LABEL_AFTER);
@@ -111,6 +119,7 @@ void refreshPortalParamDefaults() {
   snprintf(lon_buf, sizeof(lon_buf), "%.6f", services::location::lon());
   s_param_lat.setValue(lat_buf, kCoordParamLen);
   s_param_lon.setValue(lon_buf, kCoordParamLen);
+  s_param_adsb_url.setValue(services::adsb::localUrl(), kAdsbUrlParamLen);
   snprintf(s_miles_checkbox_attrs, sizeof(s_miles_checkbox_attrs), "type=\"checkbox\"%s",
            ui::radar::useMiles() ? " checked" : "");
   s_param_miles.setValue("T", 2);
@@ -139,6 +148,7 @@ void onPortalParamsSaved() {
                                            s_param_lon.getValue())) {
     Serial.println("Invalid lat/lon in portal — keeping previous location");
   }
+  services::adsb::saveLocalUrl(s_param_adsb_url.getValue());
   ui::radar::saveMilesFromPortal(s_param_miles.getValue());
   ui::radar::saveRunwaysFromPortal(s_param_runways.getValue());
   ui::radar::saveBelugaOnlyFromPortal(s_param_beluga.getValue());
@@ -152,6 +162,7 @@ void attachPortalParams(WiFiManager& wm) {
   refreshPortalParamDefaults();
   wm.addParameter(&s_param_lat);
   wm.addParameter(&s_param_lon);
+  wm.addParameter(&s_param_adsb_url);
   wm.addParameter(&s_param_miles);
   wm.addParameter(&s_param_runways);
   wm.addParameter(&s_param_beluga);
@@ -235,8 +246,9 @@ void resetWifiCredentials() {
   markForceConfigPortal();
   eraseWifiCredentials();
   services::location::clear();
+  services::adsb::clearLocalUrl();
   ui::radar::unitsReset();
-  Serial.println("WiFi credentials, location, and units cleared");
+  Serial.println("WiFi credentials, location, source, and units cleared");
 }
 
 void onConfigPortalApStarted(WiFiManager*) {
