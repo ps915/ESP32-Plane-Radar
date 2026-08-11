@@ -9,16 +9,16 @@ Firmware for an **ESP32-C3 Super Mini** and a **1.28″ round GC9A01** display (
 ## What it does
 
 1. **Wi‑Fi setup** (if needed) — captive portal on AP **`PlaneRadar-Setup`**
-2. **Radar** — live aircraft from [adsb.fi](https://opendata.adsb.fi/) on a sonar-style grid
+2. **Radar** — live aircraft on a sonar-style grid, from your **own tar1090 / adsb.im receiver** if configured, otherwise [adsb.fi](https://opendata.adsb.fi/)
 
-After Wi‑Fi is saved, the device reconnects automatically; the radar runs in the main loop with periodic ADS-B updates (~5 s).
+After Wi‑Fi is saved, the device reconnects automatically; the radar runs in the main loop with periodic ADS-B updates (1 s local source, 3 s adsb.fi).
 
 ## Controls (BOOT, GPIO 9, active LOW)
 
 | Action | Effect |
 |--------|--------|
-| **Short tap** | Cycle range preset (5 → 10 → 15 → 25 km); saved to flash |
-| **Hold 3 s** | Clear Wi‑Fi, location, and units; reboot into setup portal |
+| **Short tap** | Cycle range preset (5 → 7 → 10 → 15 → 25 → 50 km); saved to flash |
+| **Hold 3 s** | Clear Wi‑Fi, location, units, filters, and theme colors; reboot into setup portal |
 
 During setup you can also hold BOOT at power-on to force a credential reset (same as the long press).
 
@@ -33,17 +33,28 @@ During setup you can also hold BOOT at power-on to force a credential reset (sam
 **Reconfigure anytime** (after the device is on your network):
 
 1. Open **`http://plane-radar.local`** or **`http://<device-ip>`** (e.g. from your router or serial log at boot)
-2. Change Wi‑Fi, location, units, or runway overlay; save
+2. Change Wi‑Fi, location, ADS-B source, units, filters, or theme colors; save
 
 The same portal runs on the setup AP and on the device’s LAN IP while connected to Wi‑Fi. mDNS hostname is `plane-radar` → **plane-radar.local** (`kPortalHostname` in `config.h`). Some clients resolve `.local` slowly; use the IP if needed.
 
-**Custom fields** (stored in NVS):
+**Custom fields** (stored in NVS), grouped into **General Settings**, **Display Settings**, and **Radar Theme Colors**:
 
 | Field | Purpose |
 |-------|---------|
 | **Latitude / Longitude** | Radar center and ADS-B query position (defaults in `config.h` until set) |
-| **Display distances in miles** | Ring scale label in **mi** instead of **km** (e.g. `6mi` vs `10km`) |
+| **Local ADS-B URL** | Full `aircraft.json` URL of your own tar1090 / adsb.im receiver, e.g. `http://192.168.0.199:8080/data/aircraft.json`. Empty = adsb.fi only |
+| **Display distance in miles** | Ring scale label in **mi** instead of **km** (e.g. `6mi` vs `10km`) |
+| **Display altitude in meters** | Altitude tags in **m** instead of **ft** |
+| **Show altitude** | Altitude tag on/off |
+| **Show speed** | Speed indication on/off (text tag or vector line) |
+| **Display speed as text tag** | Numeric speed tag instead of the magenta track vector line |
+| **Display speed in km/h** | Speed tag in **km/h** instead of **kt** |
 | **Show airport runways** | Major-airport runway overlay on the radar (off to hide) |
+| **Filter: Only show Airbus aircraft** | Drops everything except Airbus types (Beluga included) |
+| **Filter: Only show Airbus Beluga** | Drops everything except A3ST / A337 |
+| **Grid / Airbus / Boeing / Beluga / Military / Other Planes Color** | Color pickers for the radar theme; a **Reset colors** button restores the defaults |
+
+Both filters are **off by default**. With a filter on, the radar stays empty unless matching traffic is genuinely in range — a forgotten filter looks exactly like a bug.
 
 After a reset, the device reboots and shows the setup screen immediately (no “Connecting” loop on stale credentials).
 
@@ -55,18 +66,20 @@ After a reset, the device reboots and shows the setup screen immediately (no “
 - White **N / S / E / W** at the bezel; range label on the **east** spoke (ring 3 = ¾ of outer radius)
 - White center dot
 
-Layout and colors: `include/ui/radar_theme.h`.
+Layout and default colors: `include/ui/radar_theme.h`; the grid color is overridable in the portal.
 
 ### Range presets
 
 | Ring 3 label | Outer radius (aircraft scale) |
 |------------|-------------------------------|
 | 5 km / 3 mi | ~6.7 km |
+| 7 km / 4 mi | ~9.3 km |
 | 10 km / 6 mi | ~13.3 km (default) |
 | 15 km / 9 mi | ~20 km |
 | 25 km / 16 mi | ~33.3 km |
+| 50 km / 31 mi | ~66.7 km |
 
-Preset and miles/km choice persist across reboot (`planeradar` NVS namespace).
+Preset, units, filters, and theme colors persist across reboot (`planeradar` NVS namespace).
 
 ### Runways
 
@@ -76,18 +89,41 @@ Preset and miles/km choice persist across reboot (`planeradar` NVS namespace).
 
 ### Aircraft
 
-- **Inside the outer ring** — red heading triangle, magenta speed vector (clipped at the ring), callsign / type / altitude tags
-- **Outside the ring** (still within ADS-B fetch) — small **red dot on the screen rim** at the correct bearing (direction cue; not distance-accurate past the ring)
+- **Inside the outer ring** — heading triangle in the manufacturer color, magenta speed vector (clipped at the ring), callsign / type / altitude / speed tags
+- **Outside the ring** (still within ADS-B fetch) — small **dot on the screen rim** at the correct bearing (direction cue; not distance-accurate past the ring)
 - **Tags** — placed toward the **center**: west (left) → tag on the **right** of the symbol; east (right) → tag on the **left**
 
 As range decreases (or aircraft approach), targets move inward; beyond-ring dots become full symbols when they cross the outer ring.
 
+#### Symbol colors
+
+Classified from the ICAO DOC 8643 type designator (ADS-B `t` field) in `include/aircraft_type.h`; the military flag wins over the manufacturer.
+
+| Class | Default | Matched by |
+|-------|---------|------------|
+| **Military** | olive `#808000` | ADS-B `dbFlags` bit 0 |
+| **Beluga** | amber `#ffbe00` | `A3ST` (A300-600ST), `A337` (A330-743L BelugaXL) |
+| **Airbus** | blue `#005aff` | `config::kAirbusTypeCodes` (A318…A388, A400, BCS1/BCS3) |
+| **Boeing** | red `#ff1e1e` | `config::kBoeingTypeCodes` (B703…B78X, incl. 737 MAX) |
+| **Other / unknown** | violet `#c878ff` | everything else, including an empty type |
+
+All five, plus the grid color, are editable in the setup portal.
+
+#### Speed and altitude tags
+
+- Altitude in **ft** (default) or **m**; speed in **kt** (default) or **km/h**
+- Speed shows either as the magenta **track vector line** (default) or as a **numeric text tag**
+- Both tags can be switched off entirely
+
 ### ADS-B
 
-- Source: `https://opendata.adsb.fi/api/v3/`
-- Fetch radius: `ui::radar::fetchRadiusKm()` — scales with the active preset to roughly the screen edge (so rim dots have data)
-- Poll interval: `kAdsbFetchIntervalMs` (5 s) in `config.h`
+- **Primary source (optional): your own receiver** — any tar1090 / adsb.im `aircraft.json` endpoint, set as **Local ADS-B URL** in the portal. Unlimited, no internet round-trip
+- **Fallback: adsb.fi** — `https://opendata.adsb.fi/api/v3/`; used when no local URL is set, or when the local one does not answer within `kAdsbLocalTimeoutMs` (1.5 s), so a powered-off receiver costs one fetch cycle, not a stalled loop
+- Both readsb-derived JSON layouts are accepted (`aircraft` key for tar1090/adsb.im, `ac` for adsb.fi)
+- Fetch radius: `ui::radar::fetchRadiusKm()` — scales with the active preset to roughly the screen edge (so rim dots have data). The local source is filtered by distance on the device, since it always returns everything the receiver sees
+- Poll interval: `kAdsbLocalFetchIntervalMs` (1 s, local) / `kAdsbFetchIntervalMs` (3 s, adsb.fi — public limit is 1 req/s)
 - Ground aircraft hidden by default (`kAdsbShowGroundAircraft`)
+- Radius and type filters are applied **while parsing**, before the fixed 64-aircraft buffer fills, so slots go to matching traffic instead of whatever arrived first
 
 ## Configuration
 
@@ -100,15 +136,26 @@ Edit **`include/config.h`** for hardware and behavior:
 | BOOT | `kBootPin`, `kBootResetHoldMs`, `kBootTapMinMs` |
 | Display SPI | pins, `kDisplayInvert`, `kDisplayRgbOrder`, `kDisplaySpiWriteHz` |
 | Default location | `kDefaultRadarLat`, `kDefaultRadarLon` (until portal overrides) |
-| ADS-B | `kAdsbFetchIntervalMs`, `kAdsbShowGroundAircraft` |
+| ADS-B | `kAdsbFetchIntervalMs`, `kAdsbLocalFetchIntervalMs`, `kAdsbLocalTimeoutMs`, `kAdsbShowGroundAircraft` |
+| Aircraft types | `kBelugaTypeCodes`, `kAirbusTypeCodes`, `kBoeingTypeCodes` (ICAO DOC 8643 designators) |
 
 Range presets: `include/ui/radar_range.h` (`kRangePresets`).
+Default theme colors: `include/ui/radar_theme.h` (portal values override them at runtime).
+
+**NVS namespaces** — deliberately separate, to avoid handle conflicts:
+
+| Namespace | Holds |
+|-----------|-------|
+| `planeradar` | range preset, units, filters, theme colors |
+| `radar` | latitude / longitude |
+| `adsbsrc` | local ADS-B source URL |
 
 ## Project layout
 
 ```
 include/
   config.h
+  aircraft_type.h          — manufacturer classification from ICAO type codes
   hardware/
     lgfx_config.hpp
     display.h
